@@ -1,0 +1,51 @@
+xlsx_format:
+  column_names:
+    - SSID
+    - Security
+    - Additional Notes
+  column_data:
+    - SSID
+    - crypt_string
+    - None
+rules:
+  - name: hidden_networks
+    condition: "advertised_SSID == ''"
+    guidance: "Hidden network, SSID identified by examining device probes and responses."
+
+  - name: deauth
+    condition: "mfp_status == 'Disabled' and is_wpa == True and is_psk == True"
+    guidance: "WPA(2)-PSK network with management frame protection disabled, potential deauthentication candidate."
+  
+  - name: pmkid_candidate 
+    condition: "is_wpa == True and is_psk == True"
+    guidance: "WPA(2)-PSK network, potential PMKID attack candidate."
+
+  - name: dragonblood
+    condition: "is_wpa3_transition == True and mfp_status == 'Disabled'"
+    guidance: "Network is in WPA3 transition mode, potential WPA3 downgrade attack candidate (DragonBlood)."
+  
+  - name: wep_encryption
+    condition: "is_wep == True"
+    guidance: "Network uses WEP encryption, potential candidate for ARP Request Replay Attack."
+  
+  - name: open_network
+    condition: "crypt_string == '' or crypt_string == 'none' or crypt_string == 'open'"
+    guidance: "Open network with no encryption."
+
+  - name: hotspots
+    condition: "hotspot == True"
+    guidance: "This network's OUI maps to a hotspot or mobile device vendor."
+
+  - name: locally_administered_mac
+    condition: "locally_administered_mac == True"
+    guidance: "This network's MAC is in the range for loclly administered MACs. This may be randomized by a mobile OS/privacy feature."
+
+# TODO: Determine if it's possible to pull specific eap methods from kismet and make this more tailored
+  - name: evil_twin
+    condition: "is_enterprise == True"
+    guidance: "Enterprise network with EAP enabled. Check the EAP method(s) in use, potential candidate for evil-twin attacks or relay attacks w/sycophant."
+
+# TODO: add condition for WPS
+#  - name: wps
+#    condition: "" 
+#    guidance: "WPS is enabled, the PIN may be recoverable using reaver."

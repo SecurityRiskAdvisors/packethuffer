@@ -1,0 +1,29 @@
+[project]
+name = "packethuffer"
+version = "0.1.0"
+description = "A simple Kismet data parsing tool for making sense of wireless recon data"
+authors = [
+    {name = "Liam Geyer",email = "liam.geyer@sra.io"}
+]
+license = {text = "AGPL-3.0-only"}
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "streamlit (>=1.56.0,<2.0.0)",
+    "pandas (>=3.0.2,<4.0.0)",
+    "rich (>=14.3.3,<15.0.0)",
+    "datetime (>=6.0,<7.0)",
+    "pathlib (>=1.0.1,<2.0.0)",
+    "pyyaml (>=6.0.3,<7.0.0)",
+    "xlsxwriter (>=3.2.9,<4.0.0)",
+    "pydantic (>=2.12.5,<3.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+packethuffer = "packethuffer.main:main"
+packethuffer-gui = "packethuffer.launcher:main"
