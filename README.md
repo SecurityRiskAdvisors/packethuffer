@@ -2,6 +2,8 @@
 
 PacketHuffer is a [Kismet](https://www.kismetwireless.net/) data parser that makes it easier for operators to turn warwalking data into actionable intelligence. It parses one or more `.kismet` databases into a unified output that identifies interesting networks based on a series of configurable rules (ex. flag all networks without encryption).
 
+Checkout the SRA Labs Blogpost [here](https://labs.sra.io/posts/packethuffer/).
+
 PacketHuffer has both a CLI and a GUI, it can generate both JSON and XLSX output. The GUI allows for network data to be easily viewed and filtered by either preset rules, or custom queries.
 
 ## Installation
