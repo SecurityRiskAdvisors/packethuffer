@@ -1,10 +1,12 @@
 xlsx_format:
   column_names:
     - SSID
+    - Encryption Type
     - Security
     - Additional Notes
   column_data:
     - SSID
+    - enc_type
     - crypt_string
     - None
 rules:

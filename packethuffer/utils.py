@@ -226,6 +226,7 @@ def build_network_dataframe(df: DataFrame) -> DataFrame:
                     enterprise_indicator in crypt_string
                     for enterprise_indicator in ["eap", "802.1x", "enterprise"]
                 )
+                is_wpa3 = "wpa3" in crypt_string
                 is_wpa3_transition = (
                     ("wpa3" in crypt_string and "wpa2" in crypt_string)
                     or "transition" in crypt_string
@@ -261,6 +262,22 @@ def build_network_dataframe(df: DataFrame) -> DataFrame:
                 elif mfp_supported == 1:
                     mfp_status = "Optional"
 
+                # Determine generic encryption type
+                if not crypt_string or crypt_string in ("none", "open"):
+                    enc_type = "Open"
+                elif is_wpa3_transition:
+                    enc_type = "WPA3 Transition"
+                elif is_wpa3:
+                    enc_type = "WPA3"
+                elif is_wpa2:
+                    enc_type = "WPA2"
+                elif is_wpa:
+                    enc_type = "WPA"
+                elif is_wep:
+                    enc_type = "WEP"
+                else:
+                    enc_type = "Unknown"
+
                 channel = network_data.get("dot11.advertisedssid.channel")
                 advertised_connected_clients = device_json["dot11.device"].get(
                     "dot11.device.num_associated_clients"
@@ -277,6 +294,7 @@ def build_network_dataframe(df: DataFrame) -> DataFrame:
                 # Create a dictionary for this network
                 network_dict = {
                     "SSID": ssid,
+                    "enc_type": enc_type,
                     "crypt_string": crypt_string,
                     "channel": channel,
                     "num_associated_clients": advertised_connected_clients,
