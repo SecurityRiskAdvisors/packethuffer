@@ -20,16 +20,16 @@ class PacketHuffer:
         raw_config = load_yaml(self.config_file)
         config = PacketHufferConfig.model_validate(raw_config)
 
-        self.rules = config.rules
+        self.network_rules = config.rules
         self.xlsx_format = config.xlsx_format
         self.metrics = {}
 
-    def get_rules(self) -> list[Rule]:
+    def get_network_rules(self) -> list[Rule]:
         """
         Returns the list of rules used for filtering/network ID
         """
 
-        return self.rules
+        return self.network_rules
 
     def anonymize_data(self) -> DataFrame:
         """
@@ -42,12 +42,19 @@ class PacketHuffer:
             ["SSID", "devmac", "advertised_SSID", "responded_SSID"],
         )
 
-    def get_enriched_network_data(self) -> DataFrame:
+    def get_network_data(self) -> DataFrame:
         """
-        Returns the DataFrame of final PacketHuffer data
+        Returns the DataFrame of network probe data
         """
 
         return self.enriched_kismet_network_data
+
+    def get_probe_data(self) -> DataFrame:
+        """
+        Returns the DataFrame of probe data
+        """
+
+        return self.enriched_kismet_probe_data
 
     def run(self) -> None:
         """
@@ -55,27 +62,39 @@ class PacketHuffer:
         """
 
         self.logger.info("Huffing some packets...")
-        # Pull out network data
+        # Pull out network data & probe data
         self.kismet_network_data = build_network_dataframe(self.full_kismet_device_data)
+        self.kismet_probe_data = build_probe_dataframe(self.full_kismet_device_data)
 
         # Enrich the data - build our metatable with the information we care about, and run a series of checks
-        self.enriched_kismet_network_data = identify_interesting_networks(
-            self.kismet_network_data, self.rules
+        self.enriched_kismet_network_data = run_rules(
+            self.kismet_network_data, self.network_rules
         )
 
+        # Identify zombie networks
+        self.enriched_kismet_probe_data = identify_zombie_networks(
+            self.kismet_probe_data, self.kismet_network_data
+        )
         # Save some metrics for the summary
         self.metrics["num_networks"] = len(self.kismet_network_data)
-        self.metrics["num_rules_processed"] = len(self.rules)
+        self.metrics["num_probes"] = len(self.kismet_probe_data)
+        self.metrics["num_network_rules_processed"] = len(self.network_rules)
 
         return
 
     def generate_json_output(self) -> bytes:
         """
-        Generates a JSON export of network data
+        Generates a JSON export of network and probe data
         """
 
         self.logger.info("Generating JSON output.")
-        return self.enriched_kismet_network_data.to_json().encode("utf-8")
+
+        full_data = {
+            "networks": json.loads(self.enriched_kismet_network_data.to_json()),
+            "probes": json.loads(self.enriched_kismet_probe_data.to_json()),
+        }
+
+        return json.dumps(full_data).encode("utf-8")
 
     def generate_xlsx_output(self) -> bytes:
         """
@@ -106,7 +125,11 @@ class PacketHuffer:
 ## Network Data
 
 * Identified {self.metrics["num_networks"]} unique networks
-* Processed {self.metrics["num_rules_processed"]} rules to identify interesting networks
+* Processed {self.metrics["num_network_rules_processed"]} rules to identify interesting networks
+
+## Probe Data
+
+* Identified {self.metrics["num_probes"]} unique probed networks
 """
 
         return summary

@@ -11,7 +11,6 @@ import io
 
 from packethuffer.config import Rule
 
-
 HOTSPOT_MANUFACTURERS = ["Apple, Inc.", "Samsung Electronics Co.,Ltd"]
 
 
@@ -149,7 +148,7 @@ def load_yaml(config_file: str) -> dict:
 
 
 # TODO: insert the operator guidance at index 2
-def identify_interesting_networks(df: DataFrame, rules: dict) -> DataFrame:
+def run_rules(df: DataFrame, rules: dict) -> DataFrame:
     """
     Takes in our enriched/metatable kismet network dataframe and runs a series of checks to identify interesting networks for operators.
     Returns a dataframe with a new operator guidance field.
@@ -170,6 +169,99 @@ def identify_interesting_networks(df: DataFrame, rules: dict) -> DataFrame:
         result_df = _apply_rule(result_df, rule)
 
     return result_df
+
+
+def identify_zombie_networks(probe_df: DataFrame, network_df: DataFrame) -> DataFrame:
+    """
+    Takes in probe, and network dataframes. Checks each probe to determine if it was seen as an advertised network.
+    Returns a modified dataframe with a new is_zombie column.
+    """
+
+    seen_network_ssids = set(network_df["SSID"].tolist())
+
+    probe_df["is_zombie"] = ~probe_df["SSID"].isin(seen_network_ssids)
+
+    return probe_df
+
+
+def build_probe_dataframe(df: DataFrame) -> DataFrame:
+    """
+    Takes in a dataframe containing Kismet devices; builds a new dataframe with only wireless clients that probe for SSIDs
+    """
+
+    # Iterate through clients to identify probes
+    clients = df[df["type"] == "Wi-Fi Client"]
+
+    # Build our resulting list of probes
+    probes = []
+
+    for _, client in clients.iterrows():
+        try:
+            device_json = client["device"]
+
+            num_probed_networks = device_json["dot11.device"].get(
+                "dot11.device.num_probed_ssids", 0
+            )
+
+            # Only proceed if the client has probed
+            if num_probed_networks <= 0:
+                continue
+
+            probed_networks = device_json["dot11.device"].get(
+                "dot11.device.probed_ssid_map", []
+            )
+
+            # Iterate through each probe & build a dict
+            for probe in probed_networks:
+
+                # Determine MFP Status
+                mfp_status = "Disabled"
+
+                mfp_required = probe.get("dot11.probedssid.wpa_mfp_required", 0)
+                mfp_supported = probe.get("dot11.probedssid.wpa_mfp_supported", 0)
+
+                if mfp_required == 1:
+                    mfp_status = "Required"
+                elif mfp_supported == 1:
+                    mfp_status = "Optional"
+
+                probe_dict = {
+                    "SSID": probe.get("dot11.probedssid.ssid", ""),
+                    "BSSID": probe.get("dot11.probedssid.bssid", ""),
+                    "crypt_string": probe.get("dot11.probedssid.crypt_string", ""),
+                    "crypt_set": probe.get("dot11.probedssid.crypt_set", ""),
+                    "crypt_bitfield": probe.get("dot11.probedssid.crypt_bitfield", ""),
+                    "mfp_status": mfp_status,
+                    "source_db": client["source_db"],
+                    "last_time": client["last_time"],
+                    "probed_client_mac": client["devmac"],
+                }
+
+                probes.append(probe_dict)
+
+        except Exception as e:
+            # Skip this client if there's an error processing it
+            print(f"Error processing client {client.get('devmac', 'unknown')}: {e}")
+            continue
+
+    # Create the final DataFrame from the list of probes
+    probes_df = pd.DataFrame(probes)
+
+    # Add a count column based on the number of times an SSID is present
+    probes_df["probe_count"] = probes_df.groupby("SSID")["SSID"].transform("count")
+
+    # Deduplicate devices by SSID and merge the source_db field
+    unique_probes = deduplicate_devices_by_field(
+        probes_df,
+        "SSID",
+        {
+            "source_db": lambda x: sorted(set(x)),
+            "BSSID": lambda x: sorted(set(x)),
+            "probed_client_mac": lambda x: sorted(set(x)),
+        },
+    )
+
+    return unique_probes
 
 
 def build_network_dataframe(df: DataFrame) -> DataFrame:

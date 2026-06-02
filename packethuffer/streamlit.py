@@ -57,121 +57,202 @@ if not remote_db_files and not local_db_files:
 
 # Setup PacketHuffer
 huffer = initialize_huffer(config_file, local_db_files, remote_db_files)
-kismet_network_data = huffer.get_enriched_network_data()
+kismet_network_data = huffer.get_network_data()
+kismet_probe_data = huffer.get_probe_data()
 
-# Pull rules for filtering
-rules = huffer.get_rules()
+# Make sep tabs for probe/network data
+main_tab1, main_tab2 = st.tabs(["Network Data", "Probe Data"])
 
-st.subheader("Kismet Network Data")
+with main_tab1:
 
-# Allow for users to filter network data by premade rule - or by custom query
-filter_tab1, filter_tab2 = st.tabs(["Rule-Based Filtering", "Custom Query Filter"])
+    # Pull rules for filtering
+    rules = huffer.get_network_rules()
 
-# Premade rule-based filtering
-with filter_tab1:
+    st.subheader("Network Data")
 
-    # Display the dataframe and allow filtering output based on rules
-    all_rule_names = sorted([rule.name for rule in rules])
-
-    allowed_filters = st.multiselect(
-        "Include networks based on rules:", options=all_rule_names
+    # Allow for users to filter network data by premade rule - or by custom query
+    network_filter_tab1, network_filter_tab2 = st.tabs(
+        ["Rule-Based Filtering", "Custom Query Filter"]
     )
 
-    disallowed_filters = st.multiselect(
-        "Exclude networks based on rules:", options=all_rule_names
-    )
+    # Premade rule-based filtering
+    with network_filter_tab1:
 
-    st.write(
-        "Filtering operations are inclusive, selecting 2 rules will show/hide results matching either rule."
-    )
+        # Display the dataframe and allow filtering output based on rules
+        all_rule_names = sorted([rule.name for rule in rules])
 
-    # Filter the dataframe based on selection
-    if allowed_filters or disallowed_filters:
-
-        allowed_guidance = []
-        disallowed_guidance = []
-        filtered_df = kismet_network_data
-
-        # Build positive filters
-        for allowed_rule in allowed_filters:
-            # Map rule name to rule content
-            rule_guidance = next(
-                (rule.guidance for rule in rules if rule.name == allowed_rule), ""
-            )
-            allowed_guidance.append(rule_guidance)
-
-        # Build negative filters
-        for disallowed_rule in disallowed_filters:
-            # Map rule name to rule content
-            rule_guidance = next(
-                (rule.guidance for rule in rules if rule.name == disallowed_rule),
-                "",
-            )
-            disallowed_guidance.append(rule_guidance)
-
-        # Filter the DF
-        if allowed_filters:
-            filtered_df = filtered_df[
-                filtered_df["operator_guidance"].apply(
-                    lambda x: isinstance(x, list)
-                    and any(guidance in allowed_guidance for guidance in x)
-                )
-            ]
-
-        if disallowed_filters:
-            filtered_df = filtered_df[
-                filtered_df["operator_guidance"].apply(
-                    lambda x: not any(guidance in disallowed_guidance for guidance in x)
-                )
-            ]
-
-    else:
-        filtered_df = kismet_network_data
-
-    # If we're filtering the data make that clear to the user
-    if allowed_filters or disallowed_filters:
-        st.write(
-            f"Found {len(filtered_df)} matching networks out of {len(kismet_network_data)} total networks"
+        allowed_filters = st.multiselect(
+            "Include networks based on rules:", options=all_rule_names
         )
 
-    # Show the filtered dataframe
-    st.dataframe(filtered_df)
+        disallowed_filters = st.multiselect(
+            "Exclude networks based on rules:", options=all_rule_names
+        )
 
-# Custom Query Filtering
-with filter_tab2:
-    st.write(
-        "Enter a custom pandas query to filter the networks. These are evaluated using `pandas.query()`, read [more info here](https://pandas.pydata.org/docs/reference/api/pandas.eval.html#pandas.eval)."
-    )
+        st.write(
+            "Filtering operations are inclusive, selecting 2 rules will show/hide results matching either rule."
+        )
 
-    # Example queries
-    example_queries = [
-        "SSID.str.contains('Guest', case=False)",
-        "crypt_string.str.contains('WEP')",
-        "is_wpa3_transition == True",
-        "num_associated_clients > 5",
-        'channel == "6"',
-    ]
+        # Filter the dataframe based on selection
+        if allowed_filters or disallowed_filters:
 
-    with st.expander("Example queries"):
-        for query in example_queries:
-            st.code(query)
+            allowed_guidance = []
+            disallowed_guidance = []
+            filtered_df = kismet_network_data
 
-    query_text = st.text_input(
-        "Enter query:", placeholder="e.g., is_wpa2 == True and is_psk == True"
-    )
+            # Build positive filters
+            for allowed_rule in allowed_filters:
+                # Map rule name to rule content
+                rule_guidance = next(
+                    (rule.guidance for rule in rules if rule.name == allowed_rule), ""
+                )
+                allowed_guidance.append(rule_guidance)
 
-    # Evaluate query if present
-    if query_text:
-        try:
-            filtered_df = kismet_network_data.query(query_text)
+            # Build negative filters
+            for disallowed_rule in disallowed_filters:
+                # Map rule name to rule content
+                rule_guidance = next(
+                    (rule.guidance for rule in rules if rule.name == disallowed_rule),
+                    "",
+                )
+                disallowed_guidance.append(rule_guidance)
+
+            # Filter the DF
+            if allowed_filters:
+                filtered_df = filtered_df[
+                    filtered_df["operator_guidance"].apply(
+                        lambda x: isinstance(x, list)
+                        and any(guidance in allowed_guidance for guidance in x)
+                    )
+                ]
+
+            if disallowed_filters:
+                filtered_df = filtered_df[
+                    filtered_df["operator_guidance"].apply(
+                        lambda x: not any(
+                            guidance in disallowed_guidance for guidance in x
+                        )
+                    )
+                ]
+
+        else:
+            filtered_df = kismet_network_data
+
+        # If we're filtering the data make that clear to the user
+        if allowed_filters or disallowed_filters:
             st.write(
                 f"Found {len(filtered_df)} matching networks out of {len(kismet_network_data)} total networks"
             )
-        except Exception as e:
-            st.error(f"Error in query: {str(e)}")
-            filtered_df = kismet_network_data
 
-    st.dataframe(filtered_df)
+        # Show the filtered dataframe
+        st.dataframe(filtered_df)
+
+    # Custom Query Filtering
+    with network_filter_tab2:
+        st.write(
+            "Enter a custom pandas query to filter the networks. These are evaluated using `pandas.query()`, read [more info here](https://pandas.pydata.org/docs/reference/api/pandas.eval.html#pandas.eval)."
+        )
+
+        # Example queries
+        example_queries = [
+            "SSID.str.contains('Guest', case=False)",
+            "crypt_string.str.contains('WEP')",
+            "is_wpa3_transition == True",
+            "num_associated_clients > 5",
+            'channel == "6"',
+        ]
+
+        with st.expander("Example queries"):
+            for query in example_queries:
+                st.code(query)
+
+        network_query_text = st.text_input(
+            "Enter query:", placeholder="e.g., is_wpa2 == True and is_psk == True"
+        )
+
+        # Evaluate query if present
+        if network_query_text:
+            try:
+                filtered_df = kismet_network_data.query(network_query_text)
+                st.write(
+                    f"Found {len(filtered_df)} matching networks out of {len(kismet_network_data)} total networks"
+                )
+            except Exception as e:
+                st.error(f"Error in query: {str(e)}")
+                filtered_df = kismet_network_data
+
+        st.dataframe(filtered_df)
+
+with main_tab2:
+
+    st.subheader("Probe Data")
+
+    # Allow for users to filter probes with keywords / identify zombies; or use a custom filter
+    probe_filter_tab1, probe_filter_tab2 = st.tabs(
+        ["Standard View", "Custom Query Filter"]
+    )
+
+    with probe_filter_tab1:
+        filter_zombies = st.checkbox("Show Only Zombie Networks")
+
+        probe_ssid_query_text = st.text_input(
+            "Enter a keyword to search probe SSIDs:", placeholder="CompanyName"
+        )
+
+        with st.expander("What's a zombie network?", expanded=False):
+            st.write(
+                "Zombie networks are wireless networks associated with our client that have been decommissioned, but whose SSIDs and connection profiles are still saved in our clients devices. This offers us an opportunity to impersonate a saved SSID (evil-twin) and intercept authentication attempts from those devices when they attempt to automatically connect. "
+            )
+
+        if filter_zombies:
+            filtered_kismet_probe_data = kismet_probe_data.query("is_zombie == True")
+        else:
+            filtered_kismet_probe_data = kismet_probe_data
+
+        if probe_ssid_query_text:
+            filtered_kismet_probe_data = filtered_kismet_probe_data[
+                filtered_kismet_probe_data["SSID"].str.contains(
+                    probe_ssid_query_text, case=False, na=False
+                )
+            ]
+
+        st.dataframe(filtered_kismet_probe_data)
+
+    with probe_filter_tab2:
+        st.write(
+            "Enter a custom pandas query to filter the probes. These are evaluated using `pandas.query()`, read [more info here](https://pandas.pydata.org/docs/reference/api/pandas.eval.html#pandas.eval)."
+        )
+
+        # Example queries
+        example_queries = [
+            "SSID.str.contains('Guest', case=False)",
+            "crypt_string.str.contains('WEP')",
+            "is_zombie == True",
+        ]
+
+        with st.expander("Example queries"):
+            for query in example_queries:
+                st.code(query)
+
+        probe_query_text = st.text_input(
+            "Enter query:", placeholder="e.g., is_zombie == True"
+        )
+
+        # Evaluate query if present
+        if probe_query_text:
+            try:
+                filtered_probe_df = kismet_probe_data.query(probe_query_text)
+                st.write(
+                    f"Found {len(filtered_probe_df)} matching probes out of {len(kismet_probe_data)} total probes"
+                )
+            except Exception as e:
+                st.error(f"Error in query: {str(e)}")
+                filtered_probe_df = kismet_probe_data
+        else:
+            filtered_probe_df = kismet_probe_data
+
+        st.dataframe(filtered_probe_df)
+
 
 # Allow for file download
 datetime_stamp = f"{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
