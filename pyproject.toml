@@ -1,6 +1,6 @@
 [project]
 name = "packethuffer"
-version = "0.1.0"
+version = "0.2.0"
 description = "A simple Kismet data parsing tool for making sense of wireless recon data"
 authors = [
     {name = "Liam Geyer",email = "liam.geyer@sra.io"}
